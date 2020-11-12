@@ -1,5 +1,4 @@
-# NCIAcademicInternship
+# NCI Academic Internship
 
-#test test
+R code to analyse permissions in malicious and benign android apps
 
-#addtional comments
