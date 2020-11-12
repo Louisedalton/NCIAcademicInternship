@@ -1,5 +1,10 @@
+#import datasets
+library(readr)
+benign <- read_csv("~/NCI/Academic Internship/benign.csv")
+malware <- read_csv("~/NCI/Academic Internship/malware.csv")
 
 
+#combine datasets
 library(tidyverse)
 data<- rbind(benign, malware)
 memory.limit(size=56000) #www.researchgate.net/post/How_to_solve_Error_cannot_allocate_vector_of_size_12_Gb_in_R
