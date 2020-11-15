@@ -4,17 +4,20 @@ benign <- read_csv("~/NCI/Academic Internship/benign.csv")
 malware <- read_csv("~/NCI/Academic Internship/malware.csv")
 
 
+
+#memory.limit(size=56000) #www.researchgate.net/post/How_to_solve_Error_cannot_allocate_vector_of_size_12_Gb_in_R
+#data<- rbind(benign, malware) #combine both dataframes
+
+
+#remove duplicate rows
+library(dplyr)
+cleanedmalware <- malware%>%distinct()
+cleanedbenign<-benign%>%distinct()
+
 #combine datasets
 library(tidyverse)
-data<- rbind(benign, malware)
-memory.limit(size=56000) #www.researchgate.net/post/How_to_solve_Error_cannot_allocate_vector_of_size_12_Gb_in_R
-data<- rbind(benign, malware) #combine both dataframes
+data<- rbind(cleanedbenign, cleanedmalware)
 
-#remove a single  variable from the workspace
-rm(TestingData)
-rm(TrainingData)
-rm(CleanedTrainingData)
-rm(spl)
 
 ##########reducing 
 #use the malware dataset to generate a matrix of permissions requested by malicious apps
