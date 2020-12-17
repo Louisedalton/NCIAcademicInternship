@@ -151,6 +151,7 @@ predictionm1 <- predict(model1, ValidationSet)
 confusionMatrix(predictionm1, ValidationSet$Mal_Ben)
 predictionm1c <- predict(model1c, ValidationSet)
 confusionMatrix(predictionm1c, ValidationSet$Mal_Ben)
+table(Truth = ValidationSet$Mal_Ben, Prediction = predict(model1c, ValidationSet))
 
 #model2 - boruta permissions/random forest
 balanceddatabortrutaimportant$Mal_Ben<-as.factor(balanceddatabortrutaimportant$Mal_Ben)
@@ -173,10 +174,29 @@ predictionm2 <- predict(model2, ValidationSetboruta)
 confusionMatrix(predictionm2, ValidationSetboruta$Mal_Ben)
 predictionm2c <- predict(model2c, ValidationSetboruta)
 confusionMatrix(predictionm2c, ValidationSetboruta$Mal_Ben)
-
+table(Truth = ValidationSetboruta$Mal_Ben, Prediction = predict(model2c, ValidationSetboruta))
 
 #model3 - all permissions/C5.0
+library(RWeka)
+library(printr)
+library(C50)
+
+c50modelALL <- C5.0(Mal_Ben~., data=TrainingSet)
+#test
+results <- predict(object = c50modelALL, newdata = ValidationSet, type = "class")
+#confusionmatrix
+table(results, ValidationSet$Mal_Ben)
+plot(c50modelALL)
+table(Truth = ValidationSet$Mal_Ben, Prediction = predict(c50modelALL, ValidationSet))
+
 #model 4 - Boruta permissions/C5.0
+c50boruta <-C5.0(Mal_Ben~., data=TrainingSetboruta)
+#test
+resultsboruta<- predict(object = c50boruta, newdata = ValidationSetboruta, type = "class")
+#confusionmatrix
+table(resultsboruta, ValidationSetboruta$Mal_Ben)
+plot(c50boruta)
+table(Truth = ValidationSetboruta$Mal_Ben, Prediction = predict(c50boruta, ValidationSetboruta))
 
 
 
