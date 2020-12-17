@@ -1,3 +1,6 @@
+install.packages(c("readr", "dplyr","ggplot2", "boruta", "caret", "randomforest", "c50"))
+library(c("readr", "dplyr","ggplot2", "boruta", "caret", "randomforest", "c50"))
+
 #import datasets
 library(readr)
 benign <- read_csv("~/NCI/Academic Internship/benign.csv")
@@ -5,18 +8,14 @@ malware <- read_csv("~/NCI/Academic Internship/malware.csv")
 
 memory.limit(size=56000) #www.researchgate.net/post/How_to_solve_Error_cannot_allocate_vector_of_size_12_Gb_in_R
 
-
-
 #remove duplicate rows
-library(dplyr)
 cleanedmalware <- malware%>%distinct()
 cleanedbenign <- benign%>%distinct()
 rm(malware)
 rm(benign)
-
 #combine datasets
-library(tidyverse)
 names(cleanedmalware)[names(cleanedmalware) == "Total Permission"] <- "Total Permissions"
+#sample benign dataset to evenly weight final dataset
 randombenign<-cleanedbenign[sample(nrow(cleanedbenign),8759),]
 
 data<- rbind(randombenign, cleanedmalware)
@@ -24,12 +23,13 @@ data<- rbind(randombenign, cleanedmalware)
 #export data 
 write.csv(data, "C:/Users/louis/OneDrive/Documents/NCI/Academic Internship/finaldata.csv")
 
+#####clean final dataset
 #remove any whitespaces
-
 cleaneddata <- data %>% mutate(across(where(is.character), str_trim))
 cleanedmalware <- cleanedmalware %>% mutate(across(where(is.character), str_trim))
 cleanedbenign <- cleanedbenign %>% mutate(across(where(is.character), str_trim))
-rm(data)
+
+finaldata <- finaldata %>% mutate(across(where(is.character), str_trim))
 
 
 #fix Mal_Ben column
@@ -74,28 +74,42 @@ plot(h1, ylim=c(hmin, hmax), col="green", xlim=c(xmin, xmax))
 lines(h2, col="blue")
 title(main="main title")
 
-#########DISREGARD - EATS MEMORY
-#feature selection forward stepwise regression
-#http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/154-stepwise-regression-essentials-in-r/
-#library(tidyverse)
-#library(caret)
-#library(leaps)
-#library(MASS)
-##set.seed(123) #ensure reproduceability
-##train.control <- trainControl(method = "cv", number = 10)
-##step.model <- train(cleaneddata$Mal_Ben ~., data=cleaneddata, method = "leapForward", tuneGrid =data.frame(nvmax = 1:1440), trControl =train.control)
-
+#########################
 #feature selection using genetic algorithm
 library(Boruta)
 library(mlbench)
 library(caret)
 library(randomForest)
 library(GenAlgo)
+
+#import datasets that have been edited in excel
+finalbalanceddataxlsx <- read_csv("~/NCI/Academic Internship/finalbalanceddataxlsx.csv")
+finaldata <- read_csv("~/NCI/Academic Internship/finaldata.csv")
+
+#extract relevant features from 'Permissions only' dataset
 set.seed(234)
-test <- Boruta(Mal_Ben ~ ., data = finalbalanceddataxlsx, doTrace = 2)
+test <- Boruta(Mal_Ben ~., data = finalbalanceddataxlsx, doTrace = 2)
 print(test)
 getSelectedAttributes(test, withTentative = F)
 borutadata <-attStats(test)
+#export boruta data
+write.csv(data, "C:/Users/louis/OneDrive/Documents/NCI/Academic Internship/borutadata.csv")
+
+
+#extract relevant features from entire dataset
+#convert Mal_Ben to a factor
+finaldata$Mal_Ben<-as.factor(finaldata$Mal_Ben)
+rm(finaldata)
+finaldata<-finaldata[,-1]
+testALLdata <- Boruta(Mal_Ben~. , data = finaldata, maxRuns = 40, doTrace = 2)
+print(testALLdata)
+getSelectedAttributes(testALLdata, withTentative = F)
+borutaALLdata <-attStats(testALLdata)
+#export boruta data
+
+
+
+write.csv(borutadata, "C:/Users/louis/OneDrive/Documents/NCI/Academic Internship/borutadata.csv")
 #subset just the confirmed important attributes
 importantattributes1 <- subset(borutadata, decision == "Confirmed")
 
@@ -103,13 +117,66 @@ importantattributes1 <- subset(borutadata, decision == "Confirmed")
 #random forest
 library(randomForest)
 library(e1071)
-#split data into training and testing set 
-trainingdata<-
-#kfold cross validation
-trControl<- trainControl(method = "cv", number = 10, search = "grid")
+
+memory.limit(size=56000)
 #convert Mal_Ben to a factor
 finalbalanceddataxlsx$Mal_Ben<-as.factor(finalbalanceddataxlsx$Mal_Ben)
-#model
-randomforest <- train(Mal_Ben~., data=finalbalanceddataxlsx,method = "rf", metric = "Accuracy", trControl=trControl)
+
+
+importantattributes <- subset(borutadata, decision == "Confirmed")
+
+summary(finalbalanceddataxlsx)
+
+fbdpermssionsonly <- finalbalanceddataxlsx[, -(1:3)]
+
+trainingdata <- sample(nrow(fbdpermssionsonly), 0.7*nrow(fbdpermssionsonly), replace = FALSE)
+TrainingSet <-fbdpermssionsonly[trainingdata,]
+ValidationSet <-fbdpermssionsonly[-trainingdata,]
+
+summary(TrainingSet)
+
+#model1 - all permissions/random forest
+model1 <- randomForest(Mal_Ben~., data = TrainingSet, importance=TRUE)
+model1
+#train models
+model1a <- randomForest(Mal_Ben~., data = TrainingSet, ntree=1000, mtry=10, importance=TRUE)
+model1a
+model1b <- randomForest(Mal_Ben~., data = TrainingSet, ntree=1000, mtry=20, importance=TRUE)
+model1b
+model1c <- randomForest(Mal_Ben~., data = TrainingSet, ntree=1500, mtry=20, importance=TRUE)
+model1c
+#test models (using caret library)
+#model1test
+predictionm1 <- predict(model1, ValidationSet)
+confusionMatrix(predictionm1, ValidationSet$Mal_Ben)
+predictionm1c <- predict(model1c, ValidationSet)
+confusionMatrix(predictionm1c, ValidationSet$Mal_Ben)
+
+#model2 - boruta permissions/random forest
+balanceddatabortrutaimportant$Mal_Ben<-as.factor(balanceddatabortrutaimportant$Mal_Ben)
+trainingdataboruta <- sample(nrow(balanceddatabortrutaimportant), 0.7*nrow(balanceddatabortrutaimportant), replace = FALSE)
+TrainingSetboruta <-balanceddatabortrutaimportant[trainingdataboruta,]
+ValidationSetboruta <-balanceddatabortrutaimportant[-trainingdataboruta,]
+#train models
+model2 <- randomForest(Mal_Ben~., data = TrainingSetboruta,  importance=TRUE)
+model2
+model2a <- randomForest(Mal_Ben~., data = TrainingSetboruta, ntree=1000, mtry=10, importance=TRUE)
+model2a
+model2b <- randomForest(Mal_Ben~., data = TrainingSetboruta, ntree=1000, mtry=20, importance=TRUE)
+model2b
+model2c <- randomForest(Mal_Ben~., data = TrainingSetboruta, ntree=1500, mtry=20, importance=TRUE)
+model2c
+
+#test models (using caret library)
+#model2test
+predictionm2 <- predict(model2, ValidationSetboruta)
+confusionMatrix(predictionm2, ValidationSetboruta$Mal_Ben)
+predictionm2c <- predict(model2c, ValidationSetboruta)
+confusionMatrix(predictionm2c, ValidationSetboruta$Mal_Ben)
+
+
+#model3 - all permissions/C5.0
+#model 4 - Boruta permissions/C5.0
+
 
 
